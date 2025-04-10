@@ -8,7 +8,7 @@ resource "aws_key_pair" "deployer" {
 }
 
 resource "aws_security_group" "k8s_sg" {
-  name_prefix = "k8s-sg"
+  name_prefix = "k8s-TODO-sg"
 
   ingress {
     description = "SSH"
@@ -49,7 +49,7 @@ resource "aws_instance" "k8s_master" {
   security_groups        = [aws_security_group.k8s_sg.name]
 
   tags = {
-    Name = "K8s-Master"
+    Name = "K8s-ToDo-App"
   }
 }
 

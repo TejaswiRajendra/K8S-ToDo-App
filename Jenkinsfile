@@ -72,6 +72,8 @@ pipeline {
             chmod 600 $SSH_KEY
 
             echo "[+] Copying install script to EC2..."
+            echo "[+] Waiting for EC2 to be ready..."
+            sleep 30
             scp -o StrictHostKeyChecking=no -i $SSH_KEY ${INSTALL_SCRIPT} ubuntu@$INSTANCE_IP:/home/ubuntu/
 
             echo "[+] Running install script on EC2..."
@@ -97,6 +99,6 @@ pipeline {
         }
       }
     }
-    
+
   }
 }
