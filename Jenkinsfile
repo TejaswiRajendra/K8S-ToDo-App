@@ -2,7 +2,7 @@ pipeline {
   agent any
 
   environment {
-    TF_DIR = 'terraform'
+    TF_DIR = 'Terraform'
     K8S_MANIFEST = 'manifests/todo-app.yaml'
     INSTALL_SCRIPT = 'scripts/install-k8s.sh'
   }
