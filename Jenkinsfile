@@ -8,15 +8,17 @@ pipeline {
     
   }
 
- stage('Terraform Init & Apply') {
-    steps {
+  stages{
+
+    stage('Terraform Init & Apply') {
+      steps {
         dir("${env.TF_DIR}") {
             sh 'terraform init'
             sh 'terraform plan'
             sh 'terraform apply -auto-approve'
         }
+      }
     }
-}
 
 
     stage('Terraform Plan') {
@@ -80,5 +82,6 @@ pipeline {
         }
       }
     }
+  }
 }
 
