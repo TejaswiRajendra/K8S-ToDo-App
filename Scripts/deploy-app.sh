@@ -1,24 +1,20 @@
 #!/bin/bash
 set -e
 
-echo "[+] Cloning app repo..."
-git clone https://github.com/TejaswiRajendra/K8S-ToDo-App.git
-cd K8S-ToDo-App
+echo "[+] Deploying app to Kubernetes..."
 
-echo "[+] Waiting for Kubernetes API to be ready..."
+ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" ubuntu@13.203.215.239 << 'EOF'
+echo "[+] Waiting for Kubernetes API server to be ready..."
 until kubectl get nodes &> /dev/null; do
+  echo "  ...waiting for kube-apiserver"
   sleep 5
-  echo "  ...still waiting for API server"
 done
 
-echo "[+] Waiting for node to be Ready..."
+echo "[+] Waiting for node to become Ready..."
 kubectl wait --for=condition=Ready node --all --timeout=120s
 
-echo "[+] Waiting for Calico pods to be ready..."
-kubectl wait --for=condition=Ready pods -n kube-system -l k8s-app=calico-node --timeout=120s
-
-echo "[+] Deploying app to Kubernetes..."
-kubectl apply -f todo-app.yaml
+echo "[+] Deploying app manifest..."
+kubectl apply -f /home/ubuntu/todo-app.yaml
 
 echo "[+] Deployment complete!"
-
+EOF
