@@ -5,21 +5,18 @@ pipeline {
     TF_DIR = 'terraform'
     K8S_MANIFEST = 'manifests/todo-app.yaml'
     INSTALL_SCRIPT = 'scripts/install-k8s.sh'
-    
   }
 
-  stages{
+  stages {
 
-    stage('Terraform Init & Apply') {
+    stage('Terraform Init') {
+      when { branch 'master' }
       steps {
         dir("${env.TF_DIR}") {
-            sh 'terraform init'
-            sh 'terraform plan'
-            sh 'terraform apply -auto-approve'
+          sh 'terraform init'
         }
       }
     }
-
 
     stage('Terraform Plan') {
       when { branch 'master' }
@@ -84,4 +81,3 @@ pipeline {
     }
   }
 }
-
