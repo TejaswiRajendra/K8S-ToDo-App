@@ -17,7 +17,8 @@ sudo systemctl start docker || { echo "Failed to start Docker"; exit 1; }
 
 log "Adding Kubernetes GPG key..."
 sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg || { echo "Failed to add Kubernetes GPG key"; exit 1; }
+# Use --batch to avoid TTY requirement and ensure non-interactive execution
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --batch --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg || { echo "Failed to add Kubernetes GPG key"; exit 1; }
 
 log "Adding Kubernetes apt repository..."
 echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list || { echo "Failed to add Kubernetes repository"; exit 1; }
@@ -41,7 +42,7 @@ kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Doc
 log "Waiting for cluster to stabilize..."
 sleep 90  # Increased from 60s to ensure stability
 until kubectl get nodes | grep -q Ready; do
-  echo "Waiting for node to be Ready... (sleeping 30)"
+  echo "Waiting for node to be Ready... (sleeping 30s)"
   sleep 30
 done
 echo "Cluster is ready!"
