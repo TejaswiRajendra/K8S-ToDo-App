@@ -4,7 +4,7 @@ pipeline {
   environment {
     TF_DIR = 'Terraform'
     K8S_MANIFEST = 'manifests/todo-app.yaml'
-    INSTALL_SCRIPT = 'scripts/install-k8s.sh'
+    INSTALL_SCRIPT = 'Scripts/install-k8s.sh'
   }
 
   stages {
