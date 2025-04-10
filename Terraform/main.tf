@@ -4,7 +4,7 @@ provider "aws" {
 
 resource "aws_key_pair" "deployer" {
   key_name   = "k8s-jenkins-key"
-  public_key = file("C:/Users/Tejaswi Rajendra/.ssh/id_rsa.pub") # You can place this in your Jenkins workspace
+  public_key = file("${path.module}/keys/id_rsa.pub") # You can place this in your Jenkins workspace
 }
 
 resource "aws_security_group" "k8s_sg" {
