@@ -12,8 +12,14 @@ pipeline {
     stage('Terraform Init') {
       when { branch 'master' }
       steps {
-        dir("${env.TF_DIR}") {
-          sh 'terraform init'
+        withCredentials([
+             string(credentialsId: 'aws_access_key', variable: 'AWS_ACCESS_KEY_ID'),
+             string(credentialsId: 'aws_secret_key', variable: 'AWS_SECRET_ACCESS_KEY')
+             
+         ]){
+            dir("${env.TF_DIR}") {
+            sh 'terraform init'
+            }
         }
       }
     }
@@ -21,18 +27,30 @@ pipeline {
     stage('Terraform Plan') {
       when { branch 'master' }
       steps {
-        dir("${env.TF_DIR}") {
-          sh 'terraform plan'
-        }
+         withCredentials([
+             string(credentialsId: 'aws_access_key', variable: 'AWS_ACCESS_KEY_ID'),
+             string(credentialsId: 'aws_secret_key', variable: 'AWS_SECRET_ACCESS_KEY')
+             
+         ]){
+             dir("${env.TF_DIR}") {
+             sh 'terraform plan'
+             }
+         }
       }
     }
 
     stage('Terraform Apply') {
       when { branch 'master' }
       steps {
-        dir("${env.TF_DIR}") {
-          sh 'terraform apply -auto-approve'
-        }
+         withCredentials([
+             string(credentialsId: 'aws_access_key', variable: 'AWS_ACCESS_KEY_ID'),
+             string(credentialsId: 'aws_secret_key', variable: 'AWS_SECRET_ACCESS_KEY')
+             
+         ]){
+            dir("${env.TF_DIR}") {
+            sh 'terraform apply -auto-approve'
+            }
+          }
       }
     }
 
@@ -79,5 +97,6 @@ pipeline {
         }
       }
     }
+    
   }
 }
