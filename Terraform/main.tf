@@ -43,7 +43,7 @@ resource "aws_security_group" "k8s_sg" {
 }
 
 resource "aws_instance" "k8s_master" {
-  ami                    = "ami-0e35ddab05955cf57" # Ubuntu 22.04 LTS in ap-south-1
+  ami                    = "ami-007020fd9c84e18c7" # Ubuntu 22.04 LTS in ap-south-1
   instance_type          = "t2.medium"
   key_name               = aws_key_pair.deployer.key_name
   security_groups        = [aws_security_group.k8s_sg.name]
