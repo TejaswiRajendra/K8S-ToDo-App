@@ -8,7 +8,7 @@ resource "aws_key_pair" "deployer" {
 }
 
 resource "aws_security_group" "k8s_sg" {
-  name_prefix = "k8s-TODO-sg"
+  name_prefix = "k8s-sg"
 
   ingress {
     description = "SSH"
