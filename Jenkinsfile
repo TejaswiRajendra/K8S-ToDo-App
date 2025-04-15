@@ -44,7 +44,16 @@ pipeline {
           string(credentialsId: 'aws_secret_key', variable: 'AWS_SECRET_ACCESS_KEY')
         ]) {
           dir("${env.TF_DIR}") {
-            sh 'terraform apply -auto-approve'
+            sh '''
+              echo "[+] Checking for existing key pair..."
+              if terraform state show aws_key_pair.deployer >/dev/null 2>&1; then
+                echo "Key pair already managed by Terraform"
+              else
+                echo "Importing existing key pair k8s-jenkins-key..."
+                terraform import aws_key_pair.deployer k8s-jenkins-key || true
+              fi
+              terraform apply -auto-approve
+            '''
           }
         }
       }
