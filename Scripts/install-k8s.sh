@@ -1,17 +1,19 @@
 #!/bin/bash
-
 set -e
 
 echo "[+] Installing prerequisites..."
 sudo apt-get update
-sudo apt-get install -y apt-transport-https curl
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
 
 echo "[+] Adding Kubernetes APT repository..."
-sudo curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/kubernetes.gpg
+sudo mkdir -p -m 755 /etc/apt/keyrings
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-sudo bash -c 'cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
-deb https://apt.kubernetes.io/ kubernetes-xenial main
-EOF'
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
+  https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | \
+  sudo tee /etc/apt/sources.list.d/kubernetes.list > /dev/null
 
 echo "[+] Installing kubeadm, kubelet, kubectl..."
 sudo apt-get update
