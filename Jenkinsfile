@@ -40,7 +40,8 @@ pipeline {
       when { branch 'master' }
       steps {
         withCredentials([
-          string(credentialsId: 'aws_access_key', variable: 'AWS_SECRET_ACCESS_KEY')
+          string(credentialsId: 'aws_access_key', variable: 'AWS_ACCESS_KEY_ID'),
+          string(credentialsId: 'aws_secret_key', variable: 'AWS_SECRET_ACCESS_KEY')
         ]) {
           dir("${env.TF_DIR}") {
             sh 'terraform apply -auto-approve'
