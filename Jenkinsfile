@@ -4,7 +4,6 @@ pipeline {
   environment {
     TF_DIR = 'Terraform'
     K8S_MANIFEST = 'manifests/todo-app.yaml'
-    INSTALL_SCRIPT = 'Scripts/install-k8s.sh'
     EC2_USER = 'ubuntu'
   }
 
@@ -52,65 +51,70 @@ pipeline {
     }
 
     stage('Fetch EC2 IP') {
-      when { branch 'master' }
       steps {
         script {
           env.INSTANCE_IP = sh(script: "cd ${env.TF_DIR} && terraform output -raw instance_ip", returnStdout: true).trim()
           if (!env.INSTANCE_IP) {
-            error "Failed to retrieve EC2 IP address from Terraform output"
+            error "Failed to retrieve EC2 IP address"
           }
           echo "EC2 Public IP: ${env.INSTANCE_IP}"
         }
       }
     }
 
-    stage('Install Docker & Kubernetes on EC2') {
+    stage('Install Docker & Kubernetes on EC2 (Ubuntu 22.04)') {
       steps {
         script {
           echo '[+] Waiting for EC2 to be ready...'
           sleep(time: 90, unit: 'SECONDS')
 
-          echo '[+] Installing Docker & Kubernetes on EC2...'
           sshagent(credentials: ['k8s-ec2-ssh']) {
             sh """
-              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${INSTANCE_IP} << 'EOF'
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${env.INSTANCE_IP} << 'EOF'
                 set -e
-
-                echo "[+] Installing prerequisites..."
-                sudo apt-get update
-                sudo apt-get install -y apt-transport-https ca-certificates curl gpg
-
-                echo "[+] Adding Docker's official GPG key..."
-                sudo install -m 0755 -d /etc/apt/keyrings
-                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-                sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-                echo "[+] Setting up the Docker repository..."
-                echo \
-                  "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-                  \$(. /etc/os-release && echo "\$VERSION_CODENAME") stable" | \
-                  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                echo "[+] Updating system..."
+                sudo apt-get update -y
 
                 echo "[+] Installing Docker..."
-                sudo apt-get update
-                sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+                sudo apt-get install -y ca-certificates curl gnupg lsb-release
+                sudo mkdir -p /etc/apt/keyrings
+                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+                echo \
+                  "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+                  https://download.docker.com/linux/ubuntu \
+                  \$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                sudo apt-get update -y
+                sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 
-                echo "[+] Adding Kubernetes APT repository..."
+                echo "[+] Enabling Docker service..."
+                sudo systemctl enable docker
+                sudo systemctl start docker
+
+                echo "[+] Installing Kubernetes..."
                 sudo mkdir -p -m 755 /etc/apt/keyrings
                 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | \
                   sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-                sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-
-                echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
-                  https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | \
+                echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | \
                   sudo tee /etc/apt/sources.list.d/kubernetes.list > /dev/null
-
-                echo "[+] Installing kubeadm, kubelet, kubectl..."
                 sudo apt-get update
                 sudo apt-get install -y kubelet kubeadm kubectl
                 sudo apt-mark hold kubelet kubeadm kubectl
 
-                echo "[+] Installation completed."
+                echo "[+] Initializing Kubernetes..."
+                sudo kubeadm init --pod-network-cidr=192.168.0.0/16
+
+                echo "[+] Setting up kubeconfig..."
+                mkdir -p \$HOME/.kube
+                sudo cp -i /etc/kubernetes/admin.conf \$HOME/.kube/config
+                sudo chown \$(id -u):\$(id -g) \$HOME/.kube/config
+
+                echo "[+] Applying Calico networking..."
+                kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+
+                echo "[+] Allowing master node to schedule pods..."
+                kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
+
+                echo "[+] Setup complete."
               EOF
             """
           }
@@ -119,20 +123,21 @@ pipeline {
     }
 
     stage('Deploy App to K8s') {
-      when { branch 'master' }
       steps {
         sshagent(credentials: ['k8s-ec2-ssh']) {
-          sh '''
+          sh """
             echo "[+] Copying manifest to EC2..."
-            scp -o StrictHostKeyChecking=no ${K8S_MANIFEST} ${EC2_USER}@${INSTANCE_IP}:/home/${EC2_USER}/
+            scp -o StrictHostKeyChecking=no ${K8S_MANIFEST} ${EC2_USER}@${env.INSTANCE_IP}:/home/${EC2_USER}/
 
-            echo "[+] Deploying app to Kubernetes..."
-            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${INSTANCE_IP} "
-              echo 'Waiting for cluster to be ready...'
-              until kubectl get nodes | grep -q Ready; do sleep 5; done
+            echo "[+] Deploying to Kubernetes..."
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${env.INSTANCE_IP} << 'EOF'
+              until kubectl get nodes | grep -q ' Ready'; do
+                echo "Waiting for node to be ready..."
+                sleep 5
+              done
               kubectl apply -f /home/${EC2_USER}/todo-app.yaml
-            "
-          '''
+            EOF
+          """
         }
       }
     }
