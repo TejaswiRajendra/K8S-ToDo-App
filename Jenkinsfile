@@ -40,8 +40,7 @@ pipeline {
       when { branch 'master' }
       steps {
         withCredentials([
-          string(credentialsId: 'aws_access_key', variable: 'AWS_ACCESS_KEY_ID'),
-          string(credentialsId: 'aws_secret_key', variable: 'AWS_SECRET_ACCESS_KEY')
+          string(credentialsId: 'aws_access_key', variable: 'AWS_SECRET_ACCESS_KEY')
         ]) {
           dir("${env.TF_DIR}") {
             sh 'terraform apply -auto-approve'
@@ -69,8 +68,8 @@ pipeline {
           sleep(time: 90, unit: 'SECONDS')
 
           sshagent(credentials: ['k8s-ec2-ssh']) {
-            sh """
-              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${env.INSTANCE_IP} << 'EOF'
+            sh '''
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${env.INSTANCE_IP} /bin/bash << 'EOF'
                 set -e
                 echo "[+] Updating system..."
                 sudo apt-get update -y
@@ -79,13 +78,21 @@ pipeline {
                 echo "[+] Installing prerequisites..."
                 sudo apt-get install -y ca-certificates curl gnupg apt-transport-https
 
+                echo "[+] Purging old Kubernetes packages and repositories..."
+                sudo apt-get remove -y kubelet kubeadm kubectl --purge || true
+                sudo apt-get autoremove -y
+                sudo rm -rf /etc/apt/sources.list.d/*kuber*
+                sudo rm -rf /etc/apt/keyrings/*kuber*
+                sudo apt-get clean
+                sudo rm -rf /var/lib/apt/lists/*
+
                 echo "[+] Installing Docker..."
                 sudo mkdir -p /etc/apt/keyrings
                 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
                 echo \
-                  "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+                  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
                   https://download.docker.com/linux/ubuntu \
-                  \$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
                 sudo apt-get update -y
                 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
@@ -121,11 +128,17 @@ pipeline {
                 sudo sysctl --system
 
                 echo "[+] Installing Kubernetes..."
+                sudo mkdir -p -m 755 /etc/apt/keyrings
                 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | \
                   sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
                 echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /" | \
                   sudo tee /etc/apt/sources.list.d/kubernetes.list
+                echo "[+] Verifying Kubernetes repository..."
                 sudo apt-get update -y
+                if ! grep -q "v1.29" /etc/apt/sources.list.d/kubernetes.list; then
+                  echo "Kubernetes repository not correctly configured!"
+                  exit 1
+                fi
                 sudo apt-get install -y kubelet kubeadm kubectl
                 sudo apt-mark hold kubelet kubeadm kubectl
 
@@ -133,9 +146,9 @@ pipeline {
                 sudo kubeadm init --pod-network-cidr=192.168.0.0/16 --ignore-preflight-errors=NumCPU
 
                 echo "[+] Setting up kubeconfig..."
-                mkdir -p \$HOME/.kube
-                sudo cp -i /etc/kubernetes/admin.conf \$HOME/.kube/config
-                sudo chown \$(id -u):\$(id -g) \$HOME/.kube/config
+                mkdir -p $HOME/.kube
+                sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+                sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
                 echo "[+] Waiting for kubeconfig to be ready..."
                 sleep 10
@@ -153,8 +166,8 @@ pipeline {
                 kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
 
                 echo "[+] Setup complete."
-              EOF
-            """
+EOF
+            '''
           }
         }
       }
@@ -163,12 +176,12 @@ pipeline {
     stage('Deploy App to K8s') {
       steps {
         sshagent(credentials: ['k8s-ec2-ssh']) {
-          sh """
+          sh '''
             echo "[+] Copying manifest to EC2..."
             scp -o StrictHostKeyChecking=no ${K8S_MANIFEST} ${EC2_USER}@${env.INSTANCE_IP}:/home/${EC2_USER}/
 
             echo "[+] Deploying to Kubernetes..."
-            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${env.INSTANCE_IP} << 'EOF'
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${env.INSTANCE_IP} /bin/bash << 'EOF'
               export KUBECONFIG=/home/${EC2_USER}/.kube/config
               until kubectl get nodes | grep -q ' Ready'; do
                 echo "Waiting for node to be ready..."
@@ -176,8 +189,8 @@ pipeline {
               done
               kubectl apply -f /home/${EC2_USER}/todo-app.yaml
               echo "[+] Application deployed."
-            EOF
-          """
+EOF
+          '''
         }
       }
     }
