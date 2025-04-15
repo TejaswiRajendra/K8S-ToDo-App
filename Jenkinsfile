@@ -102,7 +102,7 @@ pipeline {
 
                 echo "[+] Disabling swap..."
                 sudo swapoff -a
-                sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+                sudo sed -i '/swap/s/^/#/' /etc/fstab
 
                 echo "[+] Loading kernel modules..."
                 sudo tee /etc/modules-load.d/containerd.conf <<EOM
